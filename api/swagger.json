@@ -1,0 +1,388 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Currency Exchange Rate Service API",
+    "description": "Asynchronous foreign exchange rate service providing quote refresh, query by request ID, and latest quotes.\nBuilt for Plata Go Engineer test assignment.\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Artem Pak"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/api/v1/quotes": {
+      "post": {
+        "summary": "Refresh quote asynchronously",
+        "description": "Schedules a background update for the given currency pair (e.g., EUR/MXN).\nReturns an update identifier immediately without waiting for the background update to complete.\nSupports the Idempotency-Key header to safely retry requests without creating duplicates.\n",
+        "operationId": "refreshQuote",
+        "tags": [
+          "Quotes"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Optional unique client-generated token to guarantee idempotent execution.",
+            "schema": {
+              "type": "string",
+              "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateQuoteRequest"
+              },
+              "examples": {
+                "EUR_MXN": {
+                  "summary": "EUR to MXN",
+                  "value": {
+                    "currency": "EUR/MXN"
+                  }
+                },
+                "USD_MXN": {
+                  "summary": "USD to MXN",
+                  "value": {
+                    "currency": "USD/MXN"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Quote update scheduled successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateQuoteResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay or already completed request.",
+            "headers": {
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateQuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid currency format or identical currencies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict with a different currency payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Worker queue is full.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}": {
+      "get": {
+        "summary": "Get quote by update request ID",
+        "description": "Retrieves the status, rate/price, and update time for a specific update request ID.\n",
+        "operationId": "getQuoteByID",
+        "tags": [
+          "Quotes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "UUID of the quote update request returned from POST /api/v1/quotes.",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "e6a2b85c-1961-4c6e-8212-07a829ba518f"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote update request details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid UUID format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Quote update request not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/latest": {
+      "get": {
+        "summary": "Get latest exchange rate for a currency pair",
+        "description": "Returns the most recently recorded exchange rate and timestamp for a specified currency pair.\n",
+        "operationId": "getLatestQuote",
+        "tags": [
+          "Quotes"
+        ],
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "required": true,
+            "description": "Currency pair code (e.g. EUR/MXN, USD/MXN, EUR/USD).",
+            "schema": {
+              "type": "string",
+              "example": "EUR/MXN"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Latest quote rate and timestamp.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LatestQuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid currency code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No quotes recorded yet for this currency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness health check",
+        "description": "Returns service liveness state.",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is healthy."
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness probe",
+        "description": "Verifies database connectivity.",
+        "tags": [
+          "System"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is ready to serve traffic."
+          },
+          "503": {
+            "description": "Database unavailable."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UpdateQuoteRequest": {
+        "type": "object",
+        "required": [
+          "currency"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "example": "EUR/MXN",
+            "description": "ISO-4217 currency pair in BASE/QUOTE format."
+          }
+        }
+      },
+      "UpdateQuoteResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "e6a2b85c-1961-4c6e-8212-07a829ba518f"
+          },
+          "currency": {
+            "type": "string",
+            "example": "EUR/MXN"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "FAILED"
+            ],
+            "example": "PENDING"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-04T01:05:00Z"
+          }
+        }
+      },
+      "QuoteDetailResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "e6a2b85c-1961-4c6e-8212-07a829ba518f"
+          },
+          "currency": {
+            "type": "string",
+            "example": "EUR/MXN"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "FAILED"
+            ],
+            "example": "COMPLETED"
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "example": 20.447892
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-04T01:05:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-04T01:05:01Z"
+          }
+        }
+      },
+      "LatestQuoteResponse": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "example": "EUR/MXN"
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "example": 20.447892
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-04T01:05:01Z"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "invalid currency pair format, expected format BASE/QUOTE (e.g., EUR/MXN)"
+          },
+          "details": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}

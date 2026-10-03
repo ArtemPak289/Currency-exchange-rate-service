@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quotes_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: quotes
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d quotes"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quotes_net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quotes_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HTTP_PORT: "8080"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/quotes?sslmode=disable"
+      EXCHANGE_API_KEY: "2270434cad5887ab4ccc50fd5d8cfd16"
+      EXCHANGE_API_BASE_URL: "http://api.exchangeratesapi.io/v1/latest"
+      EXCHANGE_API_TIMEOUT: "10s"
+      EXCHANGE_API_CACHE_TTL: "30s"
+      USE_MOCK_FETCHER: "false"
+      WORKER_COUNT: "3"
+      WORKER_QUEUE_SIZE: "1000"
+      WORKER_MAX_RETRIES: "3"
+      WORKER_RETRY_DELAY: "1s"
+      DEDUPLICATION_WINDOW: "15s"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+    networks:
+      - quotes_net
+
+volumes:
+  postgres_data:
+
+networks:
+  quotes_net:
+    driver: bridge
