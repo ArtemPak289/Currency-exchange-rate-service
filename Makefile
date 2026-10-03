@@ -32,7 +32,7 @@ lint:
 
 clean:
 	@echo "==> Cleaning build artifacts..."
-	rm -rf bin/ tmp/
+	rm -rf bin/ tmp/ *.out
 
 docker-build:
 	@echo "==> Building Docker image..."
