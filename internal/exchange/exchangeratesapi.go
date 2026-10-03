@@ -153,11 +153,12 @@ func (c *ExchangeRatesAPIClient) refreshRates(ctx context.Context, requestedCurr
 		}
 	}
 
-	// Build symbols list: USD, EUR, MXN + requested currencies
+	// Build symbols list: USD, EUR, MXN, UZS + requested currencies
 	symbolSet := map[string]struct{}{
 		"USD": {},
 		"EUR": {},
 		"MXN": {},
+		"UZS": {},
 	}
 	for _, cur := range requestedCurrencies {
 		if cur != "" && cur != "EUR" {

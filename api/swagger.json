@@ -54,6 +54,12 @@
                   "value": {
                     "currency": "USD/MXN"
                   }
+                },
+                "USD_UZS": {
+                  "summary": "USD to Uzbek Som (UZS / SUMM)",
+                  "value": {
+                    "currency": "USD/UZS"
+                  }
                 }
               }
             }

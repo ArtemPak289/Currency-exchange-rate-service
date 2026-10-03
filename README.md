@@ -9,6 +9,7 @@
 A production-grade, asynchronous Foreign Exchange (FX) rate service written in Go. The service provides a non-blocking asynchronous HTTP JSON API for requesting exchange rate refreshes, querying quote statuses by request ID, and retrieving the latest recorded rates.
 
 All extra assignment tasks are implemented:
+- **Supported Currencies**: Full cross-rate support for **USD, EUR, MXN**, and **Uzbek Som (UZS)** with intelligent colloquial alias normalization (`SUM`, `SUMM`, `SOM`).
 - **Unit & Integration Tests** (`go test -race ./...`) with full coverage of domain, service, worker pool, and HTTP layers.
 - **Containerization** via multi-stage hardened Dockerfile and Docker Compose with healthchecks.
 - **Idempotency** supporting both explicit `Idempotency-Key` headers and automatic in-flight deduplication.
@@ -187,10 +188,16 @@ Schedules a background update for a currency pair.
 
 #### Example `curl`:
 ```bash
+# Refresh EUR/MXN
 curl -i -X POST http://localhost:8080/api/v1/quotes \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: tx-demo-1001" \
   -d '{"currency": "EUR/MXN"}'
+
+# Refresh USD/SUMM (Uzbek Som)
+curl -i -X POST http://localhost:8080/api/v1/quotes \
+  -H "Content-Type: application/json" \
+  -d '{"currency": "USD/SUMM"}'
 ```
 
 ---

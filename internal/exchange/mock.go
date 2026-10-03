@@ -28,6 +28,12 @@ func NewMockFetcher() *MockFetcher {
 			"USD/EUR": 0.888151,
 			"EUR/GBP": 0.855000,
 			"GBP/EUR": 1.169591,
+			"EUR/UZS": 13250.828227,
+			"UZS/EUR": 0.000075,
+			"USD/UZS": 11768.733734,
+			"UZS/USD": 0.000085,
+			"MXN/UZS": 647.931238,
+			"UZS/MXN": 0.001543,
 		},
 		calls: make([]string, 0),
 	}

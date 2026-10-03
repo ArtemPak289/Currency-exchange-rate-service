@@ -165,4 +165,54 @@ func TestEndToEndLifecycle(t *testing.T) {
 		assert.Equal(t, 20.447892, latest.Price)
 		assert.False(t, latest.UpdatedAt.IsZero())
 	})
+
+	// Step 7: Verify Uzbek Som / SUMM colloquial alias support
+	t.Run("Support Uzbek Som / SUMM", func(t *testing.T) {
+		payload := []byte(`{"currency": "USD/SUMM"}`)
+		httpReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/quotes", bytes.NewBuffer(payload))
+		require.NoError(t, err)
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(httpReq)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+		var updateResp appHTTP.UpdateQuoteResponse
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&updateResp))
+		_ = resp.Body.Close()
+
+		assert.Equal(t, "USD/UZS", updateResp.Currency)
+
+		// Wait for completion
+		require.Eventually(t, func() bool {
+			r, err := client.Get(server.URL + "/api/v1/quotes/" + updateResp.ID.String())
+			if err != nil || r.StatusCode != http.StatusOK {
+				return false
+			}
+			defer r.Body.Close()
+			var detail appHTTP.QuoteDetailResponse
+			if err := json.NewDecoder(r.Body).Decode(&detail); err != nil {
+				return false
+			}
+			return detail.Status == domain.StatusCompleted
+		}, 3*time.Second, 20*time.Millisecond)
+
+		// Query latest by canonical USD/UZS
+		resp, err = client.Get(server.URL + "/api/v1/quotes/latest?currency=USD/UZS")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var latest appHTTP.LatestQuoteResponse
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&latest))
+		_ = resp.Body.Close()
+
+		assert.Equal(t, "USD/UZS", latest.Currency)
+		assert.Equal(t, 11768.733734, latest.Price)
+
+		// Also query latest by alias USD/SUMM
+		resp, err = client.Get(server.URL + "/api/v1/quotes/latest?currency=USD/SUMM")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		_ = resp.Body.Close()
+	})
 }

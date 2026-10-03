@@ -43,11 +43,12 @@ func (cp CurrencyPair) String() string {
 }
 
 // SupportedCurrencies maps supported 3-letter currency codes.
-// While the service focuses on USD, EUR, and MXN, standard ISO-4217 currencies are recognized.
+// The service primarily focuses on USD, EUR, MXN, and UZS (Uzbek Som).
 var SupportedCurrencies = map[string]string{
 	"USD": "United States Dollar",
 	"EUR": "Euro",
 	"MXN": "Mexican Peso",
+	"UZS": "Uzbekistani Som",
 	"GBP": "British Pound",
 	"JPY": "Japanese Yen",
 	"CAD": "Canadian Dollar",
@@ -57,8 +58,25 @@ var SupportedCurrencies = map[string]string{
 	"CNY": "Chinese Yuan",
 }
 
+// CurrencyAliases maps common and colloquial currency names to official ISO-4217 codes.
+var CurrencyAliases = map[string]string{
+	"SUM":  "UZS",
+	"SUMM": "UZS",
+	"SOM":  "UZS",
+	"SO'M": "UZS",
+}
+
+// NormalizeCurrencyCode converts any alias (e.g. SUMM, SOM) to official ISO 4217 code.
+func NormalizeCurrencyCode(code string) string {
+	cleaned := strings.TrimSpace(strings.ToUpper(code))
+	if canonical, ok := CurrencyAliases[cleaned]; ok {
+		return canonical
+	}
+	return cleaned
+}
+
 // ParseCurrencyPair parses and normalizes currency input strings.
-// Supports delimiters "/" and "-", as well as concatenated 6-letter formats (e.g. "EURMXN", "eur/mxn").
+// Supports delimiters "/" and "-", as well as aliases like "USD/SUMM", "EUR/SUM", "UZS/MXN", "USDUZS".
 func ParseCurrencyPair(input string) (CurrencyPair, error) {
 	cleaned := strings.TrimSpace(strings.ToUpper(input))
 	if cleaned == "" {
@@ -83,9 +101,21 @@ func ParseCurrencyPair(input string) (CurrencyPair, error) {
 	} else if len(cleaned) == 6 {
 		base = cleaned[:3]
 		quote = cleaned[3:]
+	} else if len(cleaned) == 7 && (strings.HasSuffix(cleaned, "SUMM") || strings.HasPrefix(cleaned, "SUMM")) {
+		if strings.HasSuffix(cleaned, "SUMM") {
+			base = cleaned[:3]
+			quote = cleaned[3:]
+		} else {
+			base = cleaned[:4]
+			quote = cleaned[4:]
+		}
 	} else {
 		return CurrencyPair{}, ErrInvalidCurrencyPair
 	}
+
+	// Apply currency aliases
+	base = NormalizeCurrencyCode(base)
+	quote = NormalizeCurrencyCode(quote)
 
 	if len(base) != 3 || len(quote) != 3 {
 		return CurrencyPair{}, ErrInvalidCurrencyPair
