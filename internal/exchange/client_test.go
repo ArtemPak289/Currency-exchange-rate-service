@@ -43,6 +43,28 @@ func TestMockFetcher(t *testing.T) {
 		_, err := mock.FetchRate(ctx, "EUR", "MXN")
 		require.Error(t, err)
 		assert.Equal(t, forcedErr, err)
+		mock.SetError(nil) // Reset error
+	})
+
+	t.Run("set rate and calls tracker", func(t *testing.T) {
+		mock.SetRate("USD/JPY", 155.25)
+		rate, err := mock.FetchRate(ctx, "USD", "JPY")
+		require.NoError(t, err)
+		assert.Equal(t, 155.25, rate)
+
+		calls := mock.Calls()
+		assert.Contains(t, calls, "USD/JPY")
+	})
+
+	t.Run("APIError formatting", func(t *testing.T) {
+		errWithInfo := &exchange.APIError{Code: 101, Message: "msg", Info: "detailed info"}
+		assert.Equal(t, "101: detailed info", errWithInfo.Error())
+
+		errWithoutInfo := &exchange.APIError{Code: 102, Message: "only message"}
+		assert.Equal(t, "102: only message", errWithoutInfo.Error())
+
+		var nilErr *exchange.APIError
+		assert.Empty(t, nilErr.Error())
 	})
 }
 

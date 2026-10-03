@@ -29,7 +29,7 @@ func setupTestRouter(t *testing.T) (http.Handler, *memory.Repository, *worker.Po
 
 	svc := service.NewQuoteService(repo, pool, 30*time.Second)
 	handler := appHTTP.NewQuoteHandler(svc)
-	router := appHTTP.NewRouter(handler, func(ctx context.Context) error { return nil }, nil, nil, nil)
+	router := appHTTP.NewRouter(handler, func(ctx context.Context) error { return nil }, []byte("openapi: 3.0.3"), []byte("{}"), []byte("<html>swagger</html>"))
 
 	return router, repo, pool
 }
@@ -47,13 +47,62 @@ func TestHTTPHealthAndReady(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "healthy")
 	})
 
-	t.Run("GET /ready", func(t *testing.T) {
+	t.Run("GET /ready healthy", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Contains(t, rec.Body.String(), "ready")
+	})
+
+	t.Run("GET /ready failing db", func(t *testing.T) {
+		failingRouter := appHTTP.NewRouter(
+			nil,
+			func(ctx context.Context) error { return assert.AnError },
+			nil, nil, nil,
+		)
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		rec := httptest.NewRecorder()
+		failingRouter.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	})
+
+	t.Run("Swagger and Docs redirects", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/swagger", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusMovedPermanently, rec.Code)
+
+		req = httptest.NewRequest(http.MethodGet, "/docs", nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusMovedPermanently, rec.Code)
+
+		req = httptest.NewRequest(http.MethodGet, "/swagger/", nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "swagger")
+
+		req = httptest.NewRequest(http.MethodGet, "/swagger/openapi.yaml", nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		req = httptest.NewRequest(http.MethodGet, "/swagger/swagger.json", nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("ErrorWithDetails response helper", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		appHTTP.ErrorWithDetails(rec, http.StatusBadRequest, "bad request", map[string]string{"field": "currency"})
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Contains(t, rec.Body.String(), "bad request")
+		assert.Contains(t, rec.Body.String(), "currency")
 	})
 }
 
@@ -77,6 +126,24 @@ func TestHTTPRefreshQuote(t *testing.T) {
 		assert.NotEqual(t, uuid.Nil, resp.ID)
 		assert.Equal(t, "EUR/MXN", resp.Currency)
 		assert.Equal(t, domain.StatusPending, resp.Status)
+	})
+
+	t.Run("malformed json body returns 400 Bad Request", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/quotes", bytes.NewBufferString(`{invalid json`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Contains(t, rec.Body.String(), "invalid request body")
+	})
+
+	t.Run("empty currency field returns 400 Bad Request", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/quotes", bytes.NewBufferString(`{"currency": "  "}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Contains(t, rec.Body.String(), "field 'currency' is required")
 	})
 
 	t.Run("invalid currency returns 400 Bad Request", func(t *testing.T) {

@@ -111,4 +111,38 @@ func TestMemoryRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(pending), 2)
 	})
+
+	t.Run("UpdateRequestStatus and SaveLatestQuote", func(t *testing.T) {
+		reqID := uuid.New()
+		require.NoError(t, repo.CreateRequest(ctx, &domain.QuoteRequest{
+			ID:       reqID,
+			Currency: "USD/UZS",
+			Status:   domain.StatusPending,
+		}))
+
+		p := 11768.73
+		msg := "test msg"
+		err := repo.UpdateRequestStatus(ctx, reqID, domain.StatusProcessing, &p, &msg)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetRequestByID(ctx, reqID)
+		require.NoError(t, err)
+		assert.Equal(t, domain.StatusProcessing, fetched.Status)
+		assert.Equal(t, p, *fetched.Price)
+
+		// Non-existent request status update
+		err = repo.UpdateRequestStatus(ctx, uuid.New(), domain.StatusProcessing, nil, nil)
+		require.ErrorIs(t, err, domain.ErrQuoteRequestNotFound)
+
+		// SaveLatestQuote direct
+		err = repo.SaveLatestQuote(ctx, &domain.LatestQuote{
+			Currency: "USD/UZS",
+			Price:    p,
+		})
+		require.NoError(t, err)
+
+		latest, err := repo.GetLatestQuote(ctx, "USD/UZS")
+		require.NoError(t, err)
+		assert.Equal(t, p, latest.Price)
+	})
 }

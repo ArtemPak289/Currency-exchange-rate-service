@@ -52,6 +52,13 @@ func TestParseCurrencyPair(t *testing.T) {
 			expectedErr:   nil,
 		},
 		{
+			name:          "uzbek som concatenated SUMMUSD",
+			input:         "SUMMUSD",
+			expectedBase:  "UZS",
+			expectedQuote: "USD",
+			expectedErr:   nil,
+		},
+		{
 			name:          "uzbek som reversed UZS/USD",
 			input:         "UZS/USD",
 			expectedBase:  "UZS",

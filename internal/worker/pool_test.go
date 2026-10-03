@@ -117,4 +117,43 @@ func TestWorkerPool(t *testing.T) {
 			return err == nil && req.Status == domain.StatusFailed
 		}, 2*time.Second, 20*time.Millisecond)
 	})
+
+	t.Run("pool defaults and enqueue when stopped", func(t *testing.T) {
+		repo := memory.NewRepository()
+		mockFetcher := exchange.NewMockFetcher()
+
+		pool := worker.NewPool(repo, mockFetcher, 0, 0, -1, 0)
+		assert.NotNil(t, pool)
+
+		pool.Start(ctx)
+		pool.Stop()
+
+		enqueued := pool.Enqueue(worker.Job{
+			RequestID: uuid.New(),
+			Currency:  "EUR/MXN",
+		})
+		assert.False(t, enqueued, "Should return false when pool is stopped")
+	})
+
+	t.Run("startup recovery of pending requests", func(t *testing.T) {
+		repo := memory.NewRepository()
+		mockFetcher := exchange.NewMockFetcher()
+		mockFetcher.SetRate("EUR/MXN", 21.0)
+
+		pendingID := uuid.New()
+		require.NoError(t, repo.CreateRequest(ctx, &domain.QuoteRequest{
+			ID:       pendingID,
+			Currency: "EUR/MXN",
+			Status:   domain.StatusPending,
+		}))
+
+		pool := worker.NewPool(repo, mockFetcher, 2, 10, 2, 5*time.Millisecond)
+		pool.Start(ctx)
+		defer pool.Stop()
+
+		assert.Eventually(t, func() bool {
+			req, err := repo.GetRequestByID(ctx, pendingID)
+			return err == nil && req.Status == domain.StatusCompleted
+		}, 3*time.Second, 50*time.Millisecond)
+	})
 }
