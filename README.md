@@ -386,7 +386,8 @@ Test summary:
 ├── .dockerignore
 ├── .env.example
 ├── Makefile
-└── README.md
+├── README.md                     # Documentation in English
+└── READMERU.md                   # Documentation in Russian
 ```
 
 ---

@@ -24,7 +24,7 @@ import (
 func TestEndToEndLifecycle(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. Setup in-memory test environment
+	// Setup in-memory test environment
 	repo := memory.NewRepository()
 	mockFetcher := exchange.NewMockFetcher()
 	mockFetcher.SetRate("EUR/MXN", 20.447892)
